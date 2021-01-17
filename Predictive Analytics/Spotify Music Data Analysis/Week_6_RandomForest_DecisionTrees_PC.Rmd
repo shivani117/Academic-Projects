@@ -1,0 +1,222 @@
+---
+title: "Spotify 1960-2019 Hits/Flops Predictor Dataset"
+output: html_notebook
+---
+
+Libraries :
+
+```{r}
+library(C50)
+library(caret)
+library(gmodels)
+library(DataExplorer)
+library(randomForest)
+```
+
+Decision Tree :
+
+STEP 1 : Loading the Dataset.
+
+```{r}
+Spotify <- read.csv("Spotify(1960-2019)Hits_Prediction.csv", stringsAsFactors = FALSE)
+```
+
+
+```{r}
+Spotify <- Spotify[,-3]
+Spotify <- Spotify[, -2]
+Spotify <- Spotify[,-1]
+
+str(Spotify)
+summary(Spotify)
+```
+
+
+```{r}
+any(is.na(Spotify))
+table(is.na(Spotify))
+plot_missing(Spotify)
+```
+
+
+```{r}
+table(Spotify$target)
+```
+
+```{r}
+decision_train <- Spotify[1:35000, ]
+decision_test <- Spotify[35001:41106, ]
+prop.table(table(decision_train$target))
+prop.table(table(decision_test$target))
+
+```
+
+```{r}
+Spotify_decision_model <- C5.0(decision_train[-16], factor(decision_train$target))
+Spotify_decision_model
+summary(Spotify_decision_model)
+```
+
+
+```{r}
+decision_pred <- predict(Spotify_decision_model, decision_test)
+CrossTable(decision_test$target, decision_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('Actual Target','Predicted Target'))
+```
+
+Adaptive Boosting
+
+```{r}
+decision_boost <- C5.0(decision_train[-16],factor(decision_train$target), trials = 10)
+decision_boost
+summary(decision_boost)
+```
+
+
+
+```{r}
+decision_boost_pred <- predict(decision_boost, decision_test)
+CrossTable(decision_test$target, decision_boost_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('Actual Target','Predicted Target'))
+```
+
+
+```{r}
+error_cost <- matrix(c(0,9,1,0), nrow = 2)
+error_cost
+```
+
+```{r}
+decision_cost <- C5.0(decision_train[-16],factor(decision_train$target), costs = error_cost)
+decision_cost_pred <- predict(decision_cost, decision_test)
+CrossTable(decision_test$target, decision_cost_pred,
+           prop.chisq = FALSE, prop.r = FALSE, prop.c = FALSE,
+           dnn = c('Actual Target','Predicted Target'))
+```
+
+
+RANDOM FOREST :
+
+```{r}
+R_Spotify <- read.csv("Spotify(1960-2019)Hits_Prediction.csv", stringsAsFactors = FALSE)
+```
+
+
+```{r}
+R_Spotify <- R_Spotify[,-3]
+R_Spotify <- R_Spotify[,-2]
+R_Spotify <- R_Spotify[,-1]
+```
+
+
+```{r}
+R_Spotify$target <- as.factor(R_Spotify$target)
+summary(R_Spotify)
+table(R_Spotify$target)
+```
+
+
+```{r}
+#set.seed(8888)
+#index <- sample(2, nrow(R_Spotify), replace = T, prob = c(0.70,0.30))
+#forest_train <- R_Spotify[index==1, ]
+#forest_test <- R_Spotify[index==2, ]
+```
+
+```{r}
+set.seed(9999)
+index <- R_Spotify[sample(nrow(R_Spotify), 22000), ]
+partitioned.Spotify <- createDataPartition(
+        index$target,
+        times = 1,
+        p = 0.8,
+        list = F
+)
+
+forest_train = index[partitioned.Spotify, ]
+forest_test = index[-partitioned.Spotify, ]
+```
+
+
+```{r}
+set.seed(1111)
+Spotify_forest_model <- randomForest(target ~. , data = forest_train)
+Spotify_forest_model
+```
+
+```{r}
+summary(Spotify_forest_model)
+```
+
+
+```{r}
+Spotify_forest_model$confusion
+plot(Spotify_forest_model)
+```
+
+
+```{r}
+tuneRF(forest_train[,-16], forest_train$target,
+       stepFactor = 0.5,
+       plot = TRUE,
+       ntreeTry = 350,
+       trace = TRUE,
+       improve = 0.05)
+```
+
+
+```{r}
+set.seed(4444)
+Spotify_forest_model <- randomForest(target ~. , data = forest_train,
+                                     ntree = 350,
+                                     mtry = 6,
+                                     importance = TRUE,
+                                     proximity = TRUE)
+Spotify_forest_model
+
+```
+
+```{r}
+hist(treesize(Spotify_forest_model), main = "Nodes for Tree",
+     col = "skyblue")
+
+```
+
+
+```{r}
+#Plotting Importance plot
+importance(Spotify_forest_model)
+```
+
+
+```{r}
+#Checking which variables are used in our predictors
+varUsed(Spotify_forest_model)
+
+```
+
+```{r}
+#Making Predicitons
+forest_pred <- predict(Spotify_forest_model, forest_train)
+head(forest_pred,20)
+```
+
+```{r}
+#getting actual values
+head(forest_train$target, 20)
+```
+
+```{r}
+#Confusion matrix for train data
+confusionMatrix(forest_pred, forest_train$target)
+
+```
+
+```{r}
+#Predicting and building confusion matrix on Test Data. 
+forest_pred1 <- predict(Spotify_forest_model, forest_test)
+confusionMatrix(forest_pred1, forest_test$target)
+```
+
