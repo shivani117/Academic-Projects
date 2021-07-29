@@ -1,2 +1,2 @@
-# Academic-Projects
-The folders contain academic projects on data analysis.
+# Technical Academic-Projects
+The folders contain technical academic projects on data analysis.
